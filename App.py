@@ -103,7 +103,7 @@ def login_user(username, password):
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         # Read the Google Sheet data into a dataframe
-        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1QIy3p3-AUhOaSGsxiajsgHir68n8xsc2/edit")
+        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/18o58Ot15bBL2VA4uMib_HWJWgd112e2dKuil2YwojDk/edit?usp=sharing")
         
         # BULLETPROOF FIX: Strip hidden spaces/newlines from columns and data
         df.columns = df.columns.str.strip()
@@ -1063,6 +1063,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
