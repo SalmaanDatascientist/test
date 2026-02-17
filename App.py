@@ -93,22 +93,33 @@ def render_image(filename, caption=None, width=None, use_column_width=False):
         return False
 
 # Auth Helpers
+# Auth Helpers
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
 def login_user(username, password):
     try:
         # Establish connection
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         # Read the Google Sheet data into a dataframe
-        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/18o58Ot15bBL2VA4uMib_HWJWgd112e2dKuil2YwojDk/edit?usp=sharing")
+        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1QIy3p3-AUhOaSGsxiajsgHir68n8xsc2/edit")
+        
+        # BULLETPROOF FIX: Strip hidden spaces/newlines from columns and data
         df.columns = df.columns.str.strip()
-        # Check if username exists and password matches
-        user_row = df[df['username'] == username]
+        df['username'] = df['username'].astype(str).str.strip()
+        df['password'] = df['password'].astype(str).str.strip()
+        
+        # Clean the typed input just in case
+        clean_username = username.strip()
+        clean_password = password.strip()
+        
+        # Check if username exists
+        user_row = df[df['username'] == clean_username]
         
         if not user_row.empty:
             stored_password = str(user_row.iloc[0]['password'])
-            if stored_password == password:
+            if stored_password == clean_password:
                 return True
                 
         return False
@@ -1052,6 +1063,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
