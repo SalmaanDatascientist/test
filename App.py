@@ -59,8 +59,6 @@ LIVE_STATUS_FILE = "live_status.json"
 def init_files():
     if not os.path.exists(NOTIFICATIONS_FILE):
 # ... rest of the code ...
-def init_files():
-    if not os.path.exists(NOTIFICATIONS_FILE):
         with open(NOTIFICATIONS_FILE, "w") as f:
             json.dump([], f)
     if not os.path.exists(LIVE_STATUS_FILE):
@@ -1054,6 +1052,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
