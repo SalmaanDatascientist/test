@@ -347,7 +347,7 @@ if not st.session_state.logged_in:
     with col4:
         if st.button("🐍 Bootcamp", use_container_width=True): st.session_state.page = "Bootcamp"; st.rerun()
     with col5:
-        if st.button("🔐 Login / Student Portal", use_container_width=True, type="primary"): st.session_state.page = "Login"; st.rerun()
+        if st.button("🔐 Student Portal", use_container_width=True, type="primary"): st.session_state.page = "Login"; st.rerun()
 
     st.write("")
     st.markdown("### 🤖 Try Our AI Power Tools (Free Demo)")
@@ -355,7 +355,7 @@ if not st.session_state.logged_in:
     with ai_col1:
         if st.button("🧠 Chat with AyA (AI Tutor)", use_container_width=True): st.session_state.page = "AyA_AI"; st.rerun()
     with ai_col2:
-        if st.button("📝 Generate Mock Test", use_container_width=True): st.session_state.page = "Mock_Test"; st.rerun()
+        if st.button("📝 AI - Mock Test", use_container_width=True): st.session_state.page = "Mock_Test"; st.rerun()
 
 # MENU FOR LOGGED IN STUDENTS (The EdTech Hub)
 elif st.session_state.logged_in and not st.session_state.is_admin:
@@ -1236,6 +1236,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
