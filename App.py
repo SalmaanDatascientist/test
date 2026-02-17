@@ -11,6 +11,8 @@ from groq import Groq
 from openai import OpenAI
 import PyPDF2
 from streamlit_gsheets import GSheetsConnection
+import pandas as pd
+import numpy as np
 
 # -----------------------------------------------------------------------------
 # 1. PAGE CONFIGURATION
@@ -319,9 +321,11 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+import pandas as pd
+import numpy as np
 
 # -----------------------------------------------------------------------------
-# 5. NAVIGATION (With Animated Header)
+# 5. DYNAMIC NAVIGATION (Role-Based)
 # -----------------------------------------------------------------------------
 st.markdown("""
 <div class="founder-header-container">
@@ -332,31 +336,62 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("### 🧭 Main Menu")
-col1, col2, col3, col4, col5, col6 = st.columns(6)
-with col1:
-    if st.button("🏠 Home", use_container_width=True): st.session_state.page = "Home"; st.rerun()
-with col2:
-    if st.button("📚 Services", use_container_width=True): st.session_state.page = "Services"; st.rerun()
-with col3:
-    if st.button("🔴 Live Class", use_container_width=True): st.session_state.page = "Live Class"; st.rerun()
-with col4:
-    if st.button("💬 Stories", use_container_width=True): st.session_state.page = "Testimonials"; st.rerun()
-with col5:
-    if st.button("🐍 Bootcamp", use_container_width=True): st.session_state.page = "Bootcamp"; st.rerun()
-with col6:
-    if st.button("📞 Contact", use_container_width=True): st.session_state.page = "Contact"; st.rerun()
 
-st.write("")
-st.markdown("### 🤖 AI Power Tools (Free)")
-ai_col1, ai_col2 = st.columns(2)
-with ai_col1:
-    if st.button("🧠 Chat with AyA (AI Tutor)", use_container_width=True, type="primary"): 
-        st.session_state.page = "AyA_AI"
-        st.rerun()
-with ai_col2:
-    if st.button("📝 Generate Mock Test", use_container_width=True, type="primary"): 
-        st.session_state.page = "Mock_Test"
-        st.rerun()
+# MENU FOR LOGGED OUT USERS (Marketing & Public Pages)
+if not st.session_state.logged_in:
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        if st.button("🏠 Home", use_container_width=True): st.session_state.page = "Home"; st.rerun()
+    with col2:
+        if st.button("📚 Services", use_container_width=True): st.session_state.page = "Services"; st.rerun()
+    with col3:
+        if st.button("💬 Stories", use_container_width=True): st.session_state.page = "Testimonials"; st.rerun()
+    with col4:
+        if st.button("🐍 Bootcamp", use_container_width=True): st.session_state.page = "Bootcamp"; st.rerun()
+    with col5:
+        if st.button("🔐 Login / Student Portal", use_container_width=True, type="primary"): st.session_state.page = "Login"; st.rerun()
+
+    st.write("")
+    st.markdown("### 🤖 Try Our AI Power Tools (Free Demo)")
+    ai_col1, ai_col2 = st.columns(2)
+    with ai_col1:
+        if st.button("🧠 Chat with AyA (AI Tutor)", use_container_width=True): st.session_state.page = "AyA_AI"; st.rerun()
+    with ai_col2:
+        if st.button("📝 Generate Mock Test", use_container_width=True): st.session_state.page = "Mock_Test"; st.rerun()
+
+# MENU FOR LOGGED IN STUDENTS (The EdTech Hub)
+elif st.session_state.logged_in and not st.session_state.is_admin:
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        if st.button("🎓 Dashboard", use_container_width=True): st.session_state.page = "Dashboard"; st.rerun()
+    with col2:
+        if st.button("🔴 Live Class", use_container_width=True): st.session_state.page = "Live Class"; st.rerun()
+    with col3:
+        if st.button("📚 Resource Vault", use_container_width=True): st.session_state.page = "Vault"; st.rerun()
+    with col4:
+        if st.button("📈 Progress Analytics", use_container_width=True): st.session_state.page = "Progress"; st.rerun()
+    with col5:
+        if st.button("🤖 AI Tools", use_container_width=True): st.session_state.page = "AI_Menu"; st.rerun()
+    with col6:
+        if st.button("🚪 Logout", use_container_width=True): 
+            st.session_state.logged_in = False
+            st.session_state.username = "Student"
+            st.session_state.page = "Home"
+            st.rerun()
+
+# MENU FOR ADMIN (Mohammed)
+elif st.session_state.is_admin:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("👨‍🏫 Admin Hub", use_container_width=True): st.session_state.page = "Admin"; st.rerun()
+    with col2:
+        if st.button("🔴 Manage Live Class", use_container_width=True): st.session_state.page = "Live Class"; st.rerun()
+    with col3:
+        if st.button("🚪 Logout", use_container_width=True): 
+            st.session_state.logged_in = False
+            st.session_state.username = "Student"
+            st.session_state.page = "Home"
+            st.rerun()
 
 st.divider()
 
@@ -365,24 +400,164 @@ st.divider()
 # -----------------------------------------------------------------------------
 
 # ==========================================
-# PAGE: HOME
+# PAGE: LOGIN
 # ==========================================
-if st.session_state.page == "Home":
+if st.session_state.page == "Login":
+    st.markdown("# 🔐 Student Portal Login")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.container(border=True):
+            st.markdown("### Welcome Back!")
+            username = st.text_input("👤 Username")
+            password = st.text_input("🔑 Password", type="password")
+            
+            if st.button("Access Campus 🚀", use_container_width=True, type="primary"):
+                # Using your GSheets login helper
+                if login_user(username, password):
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    st.session_state.is_admin = (username == "Mohammed")
+                    st.session_state.page = "Dashboard" if not st.session_state.is_admin else "Admin"
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid Credentials. Please check with your tutor.")
+
+# ==========================================
+# PAGE: STUDENT DASHBOARD (NEW)
+# ==========================================
+elif st.session_state.page == "Dashboard":
+    st.markdown(f"# 🎓 Welcome back, {st.session_state.username}!")
     
-    # 1. Logo and Intro
-    logo_col1, logo_col2 = st.columns([1, 2])
-    with logo_col1:
+    # Notice Board
+    st.markdown("### 🔔 Latest Announcements")
+    notifs = get_notifications()
+    if notifs:
+        st.info(f"**{notifs[0]['date']}**: {notifs[0]['message']}")
+    else:
+        st.info("No new announcements today. Keep studying!")
+
+    # Gamification & Streaks
+    st.markdown("### ⚔️ Your Learning Stats")
+    s1, s2, s3, s4 = st.columns(4)
+    with s1: st.metric("🔥 Day Streak", "12 Days", "Keep it up!")
+    with s2: st.metric("📝 Tests Taken", "8", "2 this week")
+    with s3: st.metric("🧠 AyA Questions", "45", "+5 today")
+    with s4: st.markdown("🏆 **Current Badge:**\n\n⚛️ *Molecule Master*")
+
+    st.divider()
+    
+    # Action Center
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### ⏳ Pending Actions")
         with st.container(border=True):
-            if not render_image("logo", use_column_width=True):
-                st.markdown("# 🧪")
-                st.markdown("### The Molecular Man")
-    with logo_col2:
+            st.warning("⚠️ **Due Tomorrow:** ICSE Class 10 Chemistry - Chemical Bonding Mock Test")
+            st.info("📝 **Pending Review:** AyA's feedback on your Thermodynamics answers.")
+            if st.button("Go to AI Tools ➡️"):
+                st.session_state.page = "AI_Menu"
+                st.rerun()
+
+    with col2:
+        st.markdown("### 🔴 Live Class Status")
+        status = get_live_status()
         with st.container(border=True):
-            st.markdown("# Expert Tuition for Excellence 🎓")
-            st.markdown("### Personalized coaching in Mathematics, Physics, Chemistry & Biology")
-            st.write("For Classes 6-12 & Competitive Exams (NEET/JEE/Boards)")
-            st.write("")
-            st.link_button("📱 Book Free Trial", "https://wa.me/917339315376", use_container_width=True)
+            if status["is_live"]:
+                st.error(f"LIVE NOW: {status['topic']}")
+                st.markdown(f"[🎥 Click here to Join Meeting]({status['link']})")
+            else:
+                st.write("💤 No live classes currently running.")
+                st.caption("Check your schedule for the next session.")
+
+# ==========================================
+# PAGE: PROGRESS ANALYTICS (NEW)
+# ==========================================
+elif st.session_state.page == "Progress":
+    st.markdown("# 📈 Performance Analytics")
+    st.write("Track your Mock Test scores and identify areas for improvement.")
+    
+    # Dummy data representing what will eventually come from your Google Sheet
+    chart_data = pd.DataFrame(
+        {
+            "Physics": [65, 70, 75, 82, 85, 90],
+            "Chemistry": [80, 78, 85, 88, 92, 95],
+            "Biology": [60, 65, 70, 72, 78, 80],
+            "Mathematics": [50, 60, 65, 75, 80, 88]
+        },
+        index=["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"]
+    )
+    
+    st.markdown("### 📊 Mock Test Score Trend (%)")
+    st.line_chart(chart_data)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 🎯 Strongest Areas")
+        st.success("1. ICSE Class 10 Chemistry: Chemical Bonding")
+        st.success("2. CBSE Class 10 Physics: Electricity")
+    
+    with col2:
+        st.markdown("### 🚧 Focus Areas (AyA's Advice)")
+        st.warning("1. CBSE Class 10 Biology: Life Processes")
+        st.warning("2. CBSE Class 10 Mathematics: Polynomials")
+        if st.button("Ask AyA for help with Polynomials 🧠"):
+            st.session_state.page = "AyA_AI"
+            st.rerun()
+
+# ==========================================
+# PAGE: RESOURCE VAULT (NEW)
+# ==========================================
+elif st.session_state.page == "Vault":
+    st.markdown("# 📚 The Resource Vault")
+    st.write("Access proprietary notes, formula sheets, and recorded lectures 24/7.")
+    
+    # Organized by Subject
+    tab1, tab2, tab3, tab4 = st.tabs(["⚡ Physics", "⚗️ Chemistry", "🧬 Biology", "📐 Mathematics"])
+    
+    with tab1:
+        with st.expander("CBSE Class 10: Light - Reflection and Refraction"):
+            st.write("📝 **Master Notes:** Complete breakdown of spherical mirrors and lenses.")
+            st.download_button("Download PDF", data="dummy data", file_name="Reflection_Notes.pdf", mime="application/pdf")
+            st.write("🎥 **Lecture Recording:** [Watch Last Week's Class](https://youtube.com)")
+    
+    with tab2:
+        with st.expander("ICSE Class 10: Chemical Bonding"):
+            st.write("📝 **Master Notes:** Electrovalent, Covalent, and Coordinate bonding simplified.")
+            st.download_button("Download PDF", data="dummy data", file_name="Chemical_Bonding.pdf", mime="application/pdf")
+            
+    with tab3:
+        with st.expander("CBSE Class 10: Life Processes"):
+            st.write("📝 **Master Notes:** Nutrition, Respiration, Transportation, and Excretion diagrams.")
+            st.download_button("Download PDF", data="dummy data", file_name="Life_Processes.pdf", mime="application/pdf")
+            
+    with tab4:
+        with st.expander("CBSE Class 10: Polynomials"):
+            st.write("📝 **Master Notes:** Zeroes of a polynomial and relationship with coefficients.")
+            st.download_button("Download PDF", data="dummy data", file_name="Polynomials_Formulas.pdf", mime="application/pdf")
+
+# ==========================================
+# PAGE: AI TOOLS MENU (NEW ROUTING)
+# ==========================================
+elif st.session_state.page == "AI_Menu":
+    st.markdown("# 🤖 The Molecular Man AI Suite")
+    col1, col2 = st.columns(2)
+    with col1:
+        with st.container(border=True):
+            st.markdown("### 🧠 AyA AI Tutor")
+            st.write("Chat with your personal 24/7 teaching assistant. Upload PDFs or paste complex problems.")
+            if st.button("Open AyA", use_container_width=True, type="primary"): 
+                st.session_state.page = "AyA_AI"; st.rerun()
+    with col2:
+        with st.container(border=True):
+            st.markdown("### 📝 Mock Test Generator")
+            st.write("Generate unlimited targeted mock tests for any board and have AyA grade them instantly.")
+            if st.button("Open Test Generator", use_container_width=True, type="primary"): 
+                st.session_state.page = "Mock_Test"; st.rerun()
+
+# ==========================================
+# EXISTING PAGES (Keep your existing code here)
+# ==========================================
+# paste your existing `elif st.session_state.page == "Home":` 
+# and the rest of your pages (AyA_AI, Mock_Test, Live Class Admin, Bootcamp, Contact, Services, Testimonials) below this line.
 
     # 2. DYNAMIC ADVERTISEMENT
     st.markdown("""
@@ -1063,6 +1238,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
