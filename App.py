@@ -54,7 +54,6 @@ if 'mt_answers' not in st.session_state: st.session_state.mt_answers = {}
 if 'mt_feedback' not in st.session_state: st.session_state.mt_feedback = None
 
 # Files
-# Files
 NOTIFICATIONS_FILE = "notifications.json"
 LIVE_STATUS_FILE = "live_status.json"
 
@@ -94,7 +93,6 @@ def render_image(filename, caption=None, width=None, use_column_width=False):
     except:
         return False
 
-# Auth Helpers
 # Auth Helpers
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -330,7 +328,7 @@ import numpy as np
 st.markdown("""
 <div class="founder-header-container">
 <div class="founder-headline">Other Apps Were Coded by Engineers. This One Was Coded by Your Master Tutor - Mohammed Salmaan.</div>
-<div class="founder-subhead">The only online tuition service in the world running on a proprietary engine built by the Founder.</div>
+<div class="founder-subhead">The only online tuition service in the world running on a proprietary AI-engine built by the Founder.</div>
 <div class="founder-tagline">Pure Teaching Intelligence. Zero Corporate Noise.</div>
 </div>
 """, unsafe_allow_html=True)
@@ -1238,6 +1236,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
