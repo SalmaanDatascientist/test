@@ -52,7 +52,13 @@ if 'mt_answers' not in st.session_state: st.session_state.mt_answers = {}
 if 'mt_feedback' not in st.session_state: st.session_state.mt_feedback = None
 
 # Files
+# Files
+NOTIFICATIONS_FILE = "notifications.json"
+LIVE_STATUS_FILE = "live_status.json"
 
+def init_files():
+    if not os.path.exists(NOTIFICATIONS_FILE):
+# ... rest of the code ...
 def init_files():
     if not os.path.exists(NOTIFICATIONS_FILE):
         with open(NOTIFICATIONS_FILE, "w") as f:
@@ -60,8 +66,6 @@ def init_files():
     if not os.path.exists(LIVE_STATUS_FILE):
         with open(LIVE_STATUS_FILE, "w") as f:
             json.dump({"is_live": False, "topic": "", "link": ""}, f)
-
-create_users_db()
 init_files()
 
 # -----------------------------------------------------------------------------
@@ -1050,6 +1054,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
