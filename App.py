@@ -101,7 +101,7 @@ def login_user(username, password):
         conn = st.connection("gsheets", type=GSheetsConnection)
         
         # Read the Google Sheet data into a dataframe
-        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1QIy3p3-AUhOaSGsxiajsgHir68n8xsc2/edit?gid=742099580#gid=742099580")
+        df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1QIy3p3-AUhOaSGsxiajsgHir68n8xsc2/edit?usp=sharing&ouid=108305125237889420914&rtpof=true&sd=true")
         
         # Check if username exists and password matches
         user_row = df[df['username'] == username]
@@ -1052,6 +1052,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
