@@ -102,7 +102,7 @@ def login_user(username, password):
         
         # Read the Google Sheet data into a dataframe
         df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/18o58Ot15bBL2VA4uMib_HWJWgd112e2dKuil2YwojDk/edit?usp=sharing")
-        
+        df.columns = df.columns.str.strip()
         # Check if username exists and password matches
         user_row = df[df['username'] == username]
         
@@ -1052,6 +1052,7 @@ with st.container(border=True):
         "</div>", 
         unsafe_allow_html=True
     )
+
 
 
 
