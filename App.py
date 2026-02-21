@@ -1,20 +1,15 @@
 import streamlit as st
 import os
 import json
-import base64
 import datetime
-import uuid
-import requests
-import hashlib
 import re
+import urllib.parse 
+import pandas as pd
 from PIL import Image
 from groq import Groq
 from openai import OpenAI
 import PyPDF2
 from streamlit_gsheets import GSheetsConnection
-import pandas as pd
-import numpy as np
-import urllib.parse 
 
 # -----------------------------------------------------------------------------
 # 1. PAGE CONFIGURATION (Must be first)
@@ -87,9 +82,6 @@ def render_image(filename, caption=None, width=None, use_column_width=False):
     except:
         return False
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
 def login_user(username, password):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -98,14 +90,9 @@ def login_user(username, password):
         df['username'] = df['username'].astype(str).str.strip()
         df['password'] = df['password'].astype(str).str.strip()
         
-        clean_username = username.strip()
-        clean_password = password.strip()
-        
-        user_row = df[df['username'] == clean_username]
-        if not user_row.empty:
-            stored_password = str(user_row.iloc[0]['password'])
-            if stored_password == clean_password:
-                return True
+        user_row = df[df['username'] == username.strip()]
+        if not user_row.empty and str(user_row.iloc[0]['password']) == password.strip():
+            return True
         return False
     except Exception as e:
         st.error(f"Login Error: {e}")
@@ -118,8 +105,7 @@ def get_notifications():
 
 def add_notification(message):
     notifs = get_notifications()
-    new_notif = {"date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "message": message}
-    notifs.insert(0, new_notif)
+    notifs.insert(0, {"date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "message": message})
     with open(NOTIFICATIONS_FILE, "w") as f: json.dump(notifs, f)
 
 def get_live_status():
@@ -128,16 +114,21 @@ def get_live_status():
     except: return {"is_live": False, "topic": "", "link": ""}
 
 def set_live_status(is_live, topic="", link=""):
-    status = {"is_live": is_live, "topic": topic, "link": link}
-    with open(LIVE_STATUS_FILE, "w") as f: json.dump(status, f)
+    with open(LIVE_STATUS_FILE, "w") as f: json.dump({"is_live": is_live, "topic": topic, "link": link}, f)
 
 def clean_json_response(raw_text):
-    """Pro-level JSON extraction and escaping to prevent crashes from LLM formatting."""
+    """Pro-level JSON extractor and LaTeX escape-fixer."""
+    # 1. Extract JSON array block
     match = re.search(r'\[\s*\{.*?\}\s*\]', raw_text, re.DOTALL)
-    if match: 
-        extracted = match.group(0)
-        return extracted
-    return raw_text.replace("```json", "").replace("```", "").strip()
+    if match:
+        raw_json = match.group(0)
+    else:
+        raw_json = raw_text.replace("```json", "").replace("```", "").strip()
+        
+    # 2. Fix unescaped backslashes for LaTeX (e.g., \frac -> \\frac)
+    # This regex protects JSON structure while fixing the LLM's LaTeX syntax errors
+    fixed_json = re.sub(r'(?<!\\)\\(?![nrt"\\/])', r'\\\\', raw_json)
+    return fixed_json
 
 # -----------------------------------------------------------------------------
 # 4. ADAPTIVE CSS STYLING
@@ -284,7 +275,7 @@ elif st.session_state.page == "AI_Menu":
             if st.button("Open Test Generator", use_container_width=True, type="primary"): st.session_state.page = "Mock_Test"; st.rerun()
 
 # ==========================================
-# PAGE: AYA AI TUTOR (FORMATTING FIXED)
+# PAGE: AYA AI TUTOR
 # ==========================================
 elif st.session_state.page == "AyA_AI":
     st.markdown("## 🧠 AyA - The Molecular Man AI")
@@ -292,13 +283,12 @@ elif st.session_state.page == "AyA_AI":
     SYSTEM_PROMPT = """You are **Aya**, the Lead AI Tutor at **The Molecular Man Expert Tuition Solutions**. 
     Tone: Encouraging, clear, patient, and intellectually rigorous.
     
-    CRITICAL INSTRUCTIONS FOR FORMATTING:
-    1. You MUST format all mathematical equations, scientific variables, formulas, and numeric values using LaTeX.
-    2. Enclose inline math variables in a single `$` (e.g., $f = +10$ cm, $v$, $u$).
+    CRITICAL LATEX INSTRUCTIONS:
+    1. You MUST format all mathematical equations, scientific variables, formulas, and numeric values using standard LaTeX.
+    2. Enclose inline math variables in a single `$` (e.g., $f = +10$ cm, $v$).
     3. Enclose block equations in double `$$` on their own line (e.g., $$\frac{1}{f} = \frac{1}{v} - \frac{1}{u}$$).
-    4. Use bullet points and double line breaks (`\n\n`) to make your steps visually beautiful and easy to read. Do NOT output a wall of text.
     
-    Structure: 🧠 CONCEPT -> 🌍 CONTEXT -> ✍️ SOLUTION -> ✅ ANSWER -> 🚀 HERO TIP."""
+    Structure: 🧠 CONCEPT -> 🌍 CONTEXT -> ✍️ SOLUTION -> ✅ ANSWER."""
 
     with st.expander("📝 New Problem Input", expanded=(len(st.session_state.aya_messages) == 0)):
         input_type = st.radio("Input Method:", ["📄 Text Problem", "📕 Upload PDF"], horizontal=True)
@@ -336,7 +326,7 @@ elif st.session_state.page == "AyA_AI":
         st.rerun()
 
 # ==========================================
-# PAGE: MOCK TEST ENGINE (PRO + MATH FIX)
+# PAGE: MOCK TEST ENGINE
 # ==========================================
 elif st.session_state.page == "Mock_Test":
     st.markdown("## 📝 Pro-Level AI Mock Test Engine")
@@ -345,12 +335,12 @@ elif st.session_state.page == "Mock_Test":
     def get_questions_json(board, cls, sub, chap, num, diff, q_type):
         prompt = f"""
         Act as the Chief Examiner for the {board} Board in India.
-        Create a highly accurate, syllabus-aligned test for Class {cls} {sub}, focusing STRICTLY on the chapter: '{chap}'. Difficulty: {diff}. Generate exactly {num} {q_type} questions.
+        Create a test for Class {cls} {sub}, chapter: '{chap}'. Difficulty: {diff}. Count: {num} {q_type}.
 
-        CRITICAL INSTRUCTIONS:
-        1. NO HALLUCINATIONS. All math and physics rules MUST be obeyed (e.g., proper sign conventions for lenses/mirrors).
-        2. LaTeX FORMATTING: You MUST format all mathematical formulas, fractions, and values using LaTeX. Use `$` for inline math and double `$$` for block math. ALWAYS double-escape backslashes in JSON (e.g., use \\\\frac instead of \\frac).
-        3. Output ONLY a valid JSON array. Do not include markdown blocks like ```json.
+        CRITICAL INSTRUCTIONS TO PREVENT CRASHES AND ERRORS:
+        1. JSON ONLY: Output ONLY a valid JSON array. No markdown blocks.
+        2. MATH ACCURACY (WORK BACKWARDS): You are strictly ordered to pick a clean, integer answer FIRST. Then, construct the question variables (like u and f) around that answer so the math is flawless. Strictly obey standard sign conventions.
+        3. LaTeX: Use LaTeX for math. Use `$` for inline math and `$$` for block math. 
         """
         
         if q_type in ["MCQ", "Numerical"]:
@@ -359,11 +349,10 @@ elif st.session_state.page == "Mock_Test":
         [
           {
             "id": 1,
-            "question": "Clear question text. Include LaTeX math like $f = +10$ cm",
-            "internal_calculation": "You MUST do the math step-by-step here FIRST to find the true, flawless answer before creating the options.",
+            "question": "Question text. Use LaTeX $f = +10$ cm.",
             "options": ["Option A", "Option B", "Option C", "Option D"],
-            "correct_answer": "Exact match to ONE option",
-            "explanation": "Detailed step-by-step derivation using LaTeX formatted math. Use double line breaks (\\\\n\\\\n) to separate steps for readability."
+            "correct_answer": "Exact string match to ONE option",
+            "explanation": "Show calculation step-by-step using double $$ for formulas. Use \\n\\n for line breaks."
           }
         ]
         """
@@ -375,7 +364,7 @@ elif st.session_state.page == "Mock_Test":
             "id": 1,
             "question": "Clear descriptive question",
             "marks": 5,
-            "key_points": ["Essential point 1", "Essential point 2"],
+            "key_points": ["Point 1", "Point 2"],
             "explanation": "A complete textbook answer."
           }
         ]
@@ -386,8 +375,10 @@ elif st.session_state.page == "Mock_Test":
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1
             )
-            return json.loads(clean_json_response(res.choices[0].message.content))
-        except Exception as e: 
+            clean_output = clean_json_response(res.choices[0].message.content)
+            return json.loads(clean_output)
+        except Exception as e:
+            st.error(f"Engine parsing error. The AI generated invalid syntax. Please try again.")
             return None
 
     if not st.session_state.mt_questions:
@@ -405,7 +396,7 @@ elif st.session_state.page == "Mock_Test":
 
         if st.button("🚀 Generate Pro Test", type="primary"):
             if sub and chap:
-                with st.spinner("AyA is verifying calculations and drafting paper..."):
+                with st.spinner("AyA is strictly verifying calculations and drafting paper..."):
                     st.session_state.mt_q_type = q_type
                     st.session_state.board = board
                     st.session_state.cls = cls
@@ -415,8 +406,6 @@ elif st.session_state.page == "Mock_Test":
                         st.session_state.mt_answers = {}
                         st.session_state.mt_feedback = None
                         st.rerun()
-                    else:
-                        st.error("Engine failed to format correctly. Try reducing question count.")
 
     else:
         if st.session_state.mt_feedback:
@@ -456,7 +445,7 @@ elif st.session_state.page == "Mock_Test":
                         for q in st.session_state.mt_questions:
                             user_ans = answers[str(q['id'])]
                             
-                            # Safely extract and format the explanation to respect line breaks
+                            # Safely extract and format the explanation to respect LaTeX and line breaks
                             expl = q.get('explanation', '')
                             expl_formatted = str(expl).replace('\\n', '\n').replace('\n', '\n\n')
                             
@@ -491,9 +480,8 @@ elif st.session_state.page == "Mock_Test":
                                 st.error("Grading Engine offline. Try again.")
 
 # ==========================================
-# CONTINUED PAGES (Services, Live Class, etc)
+# CONTINUED PAGES
 # ==========================================
-# (These remain entirely unchanged from your master copy below!)
 elif st.session_state.page == "Live Class":
     st.markdown("# 🔴 Molecular Man Live Classroom")
     if not st.session_state.logged_in:
@@ -667,7 +655,7 @@ elif st.session_state.page == "Testimonials":
 
     st.write("")
     col1, col2, col3 = st.columns([1, 1, 1])
-    with col2: st.link_button("📱 Book Free Trial", "[https://wa.me/917339315376](https://wa.me/917339315376)", use_container_width=True)
+    with col2: st.link_button("📱 Book Free Trial", "https://wa.me/917339315376", use_container_width=True)
 
 elif st.session_state.page == "Bootcamp":
     st.markdown("# 🐍 Python for Data Science & AI")
@@ -700,7 +688,7 @@ elif st.session_state.page == "Bootcamp":
                 st.write("• Introduction to Machine Learning")
                 st.write("• Real-world Project: Build your first AI model")
         st.write("")
-        st.link_button("📱 Enroll Now", "[https://wa.me/917339315376](https://wa.me/917339315376)", use_container_width=True)
+        st.link_button("📱 Enroll Now", "https://wa.me/917339315376", use_container_width=True)
 
 elif st.session_state.page == "Contact":
     st.markdown("# 📞 Get In Touch")
@@ -714,7 +702,7 @@ elif st.session_state.page == "Contact":
             st.markdown("### 📍 Location")
             st.write("Madurai, Tamil Nadu")
             st.write("")
-            st.link_button("💬 Chat on WhatsApp", "[https://wa.me/917339315376](https://wa.me/917339315376)", use_container_width=True)
+            st.link_button("💬 Chat on WhatsApp", "https://wa.me/917339315376", use_container_width=True)
     with c2:
         with st.container(border=True):
             st.markdown("### Send us a Message")
