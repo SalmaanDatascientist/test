@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import json
 import datetime
-import re
 import urllib.parse 
 import pandas as pd
 from PIL import Image
@@ -52,6 +51,7 @@ init_files()
 try:
     groq_api_key = st.secrets.get("GROQ_API_KEY")
     groq_client = Groq(api_key=groq_api_key)
+    # Using OpenAI wrapper for Groq to access strict JSON mode easily
     openai_client = OpenAI(api_key=groq_api_key, base_url="https://api.groq.com/openai/v1")
 except Exception:
     pass 
@@ -115,16 +115,6 @@ def get_live_status():
 
 def set_live_status(is_live, topic="", link=""):
     with open(LIVE_STATUS_FILE, "w") as f: json.dump({"is_live": is_live, "topic": topic, "link": link}, f)
-
-def clean_json_response(raw_text):
-    """Pro-level JSON extractor and LaTeX escape-fixer."""
-    match = re.search(r'\[\s*\{.*?\}\s*\]', raw_text, re.DOTALL)
-    if match:
-        raw_json = match.group(0)
-    else:
-        raw_json = raw_text.replace("```json", "").replace("```", "").strip()
-    fixed_json = re.sub(r'(?<!\\)\\(?![nrt"\\/])', r'\\\\', raw_json)
-    return fixed_json
 
 # -----------------------------------------------------------------------------
 # 4. ADAPTIVE CSS STYLING
@@ -322,66 +312,53 @@ elif st.session_state.page == "AyA_AI":
         st.rerun()
 
 # ==========================================
-# PAGE: MOCK TEST ENGINE
+# PAGE: MOCK TEST ENGINE (BULLETPROOF MATH)
 # ==========================================
 elif st.session_state.page == "Mock_Test":
     st.markdown("## 📝 Pro-Level AI Mock Test Engine")
-    st.caption("Strict syllabus adherence. Native JSON mode and Chain-of-Thought math verification enabled.")
+    st.caption("Strict syllabus adherence. Reverse-math logic and anti-crash protocols enabled.")
     
     def get_questions_json(board, cls, sub, chap, num, diff, q_type):
-        prompt = f"Act as the Chief Examiner for the {board} Board in India.\n"
-        prompt += f"Create a test for Class {cls} {sub}, chapter: '{chap}'. Difficulty: {diff}. Count: {num} {q_type}.\n\n"
+        prompt = f"Act as the Chief Examiner for the {board} Board in India. Create a test for Class {cls} {sub}, chapter: '{chap}'. Difficulty: {diff}. Count: {num} {q_type} questions.\n\n"
         
-        prompt += """CRITICAL INSTRUCTIONS TO PREVENT CRASHES AND ERRORS:
-        1. JSON ONLY: Output a valid JSON object containing a "questions" array.
-        2. NO \\times COMMAND: NEVER use `\\times` for multiplication. It crashes the renderer. Use `\\cdot` or `*`.
-        3. DOUBLE ESCAPE LATEX: You MUST double-escape all LaTeX commands (e.g., write `\\\\frac` instead of `\\frac`). 
-        4. MATH ACCURACY: You MUST calculate the exact mathematical answer in the "draft_calculation" field FIRST. The `correct_answer` MUST EXACTLY MATCH one of the strings in the `options` array.
-        """
+        prompt += """CRITICAL SYSTEM DIRECTIVES TO PREVENT CRASHES:
+        1. JSON FORMAT ONLY: You must output a valid JSON object with a "questions" array.
+        2. STRICTLY NO LATEX OR BACKSLASHES: You are forbidden from using backslashes (like \\frac or \\times). They crash our JSON parser. Write math in plain text using standard keyboard characters (e.g., "1/v - 1/u = 1/f", "v = +40 cm", use "*" for multiplication).
+        3. REVERSE MATH PROTOCOL: For numericals, DO NOT pick random numbers for the question. You MUST pick a clean, integer final answer FIRST. Then, work mathematically backwards to find the question variables (u, f, etc.) so the math is flawless.
+        4. EXACT MATCH: The `correct_answer` MUST be an exact string match to ONE of the elements in the `options` array.
         
-        if q_type in ["MCQ", "Numerical"]:
-            prompt += """
-        JSON FORMAT EXACTLY LIKE THIS:
+        Follow this EXACT JSON Schema:
         {
           "questions": [
             {
               "id": 1,
-              "draft_calculation": "1/v - 1/u = 1/f => 1/v = 1/20 + 1/(-40) => 1/v = 1/40 => v = +40 cm.",
-              "question": "A convex lens has a focal length of $f = +20$ cm. If an object is placed at $u = -40$ cm, what is the image distance $v$?",
+              "proof_of_math": "1/v = 1/f + 1/u -> 1/v = 1/20 - 1/40 -> 1/v = 1/40 -> v = +40. Answer is +40.",
+              "question": "A convex lens has focal length f = +20 cm. Object distance u = -40 cm. Find image distance v.",
               "options": ["+20 cm", "+40 cm", "-40 cm", "-80 cm"],
               "correct_answer": "+40 cm",
-              "explanation": "Given: $f = +20$ cm, $u = -40$ cm.\\n\\nUsing the lens formula:\\n$$\\\\frac{1}{v} - \\\\frac{1}{u} = \\\\frac{1}{f}$$\\n\\n$$\\\\frac{1}{v} = \\\\frac{1}{20} - \\\\frac{1}{40} = \\\\frac{1}{40}$$\\n\\n$v = +40$ cm."
+              "explanation": "Using lens formula: 1/v - 1/u = 1/f. Rearranging: 1/v = 1/f + 1/u. Substituting values: 1/v = 1/20 - 1/40 = 1/40. Therefore, v = +40 cm."
             }
           ]
         }
         """
-        else:
-            prompt += """
-        JSON FORMAT EXACTLY LIKE THIS:
-        {
-          "questions": [
-            {
-              "id": 1,
-              "question": "Clear descriptive question",
-              "marks": 5,
-              "key_points": ["Point 1", "Point 2"],
-              "explanation": "A complete textbook answer."
-            }
-          ]
-        }
-        """
+        
         try:
             res = openai_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=4000,
+                temperature=0.01, 
                 response_format={"type": "json_object"} 
             )
-            data = json.loads(res.choices[0].message.content)
+            
+            raw_json = res.choices[0].message.content
+            # Absolute failsafe cleanup just in case AI disobeys "no backslash" rule
+            raw_json = raw_json.replace(r"\times", "*").replace("imes", "*").replace(r"\frac", "/").replace("frac", "/")
+            
+            data = json.loads(raw_json)
             return data.get("questions", [])
+            
         except Exception as e:
-            st.error(f"API Error. Please try reducing the question count. Details: {e}")
+            st.error(f"The AI generated invalid math syntax. Please try again. Details: {e}")
             return None
 
     if not st.session_state.mt_questions:
@@ -399,7 +376,7 @@ elif st.session_state.page == "Mock_Test":
 
         if st.button("🚀 Generate Pro Test", type="primary"):
             if sub and chap:
-                with st.spinner("AyA is running internal math calculations and drafting paper..."):
+                with st.spinner("AyA is executing Reverse-Math protocol and drafting paper..."):
                     st.session_state.mt_q_type = q_type
                     st.session_state.board = board
                     st.session_state.cls = cls
@@ -447,34 +424,32 @@ elif st.session_state.page == "Mock_Test":
                         feedback = ""
                         for q in st.session_state.mt_questions:
                             user_ans = answers[str(q['id'])]
-                            
                             expl = q.get('explanation', '')
-                            expl_formatted = str(expl).replace('\\n', '\n').replace('\n', '\n\n')
                             
                             if user_ans == q['correct_answer']:
                                 score += 1
-                                feedback += f"### ✅ Q{q['id']}: Correct!\n**AyA's Explanation:**\n\n{expl_formatted}\n\n---\n"
+                                feedback += f"### ✅ Q{q['id']}: Correct!\n**AyA's Explanation:**\n{expl}\n\n---\n"
                             else:
-                                feedback += f"### ❌ Q{q['id']}: Incorrect.\nYour Answer: *{user_ans}*\nCorrect Answer: **{q['correct_answer']}**\n\n**AyA's Explanation:**\n\n{expl_formatted}\n\n---\n"
+                                feedback += f"### ❌ Q{q['id']}: Incorrect.\nYour Answer: *{user_ans}*\nCorrect Answer: **{q['correct_answer']}**\n\n**AyA's Explanation:**\n{expl}\n\n---\n"
                         
                         st.session_state.mt_feedback = f"## Final Score: {score}/{len(st.session_state.mt_questions)}\n\n---\n" + feedback
                         st.rerun()
                     
                     else: 
                         prompt = f"""
-                        You are AyA, the Lead Tutor grading a Class {st.session_state.cls} {st.session_state.board} student.
-                        Official Answer Key & Marking Scheme: {json.dumps(st.session_state.mt_questions)}
+                        You are AyA, grading a Class {st.session_state.cls} {st.session_state.board} student.
+                        Official Answer Key: {json.dumps(st.session_state.mt_questions)}
                         Student's Answers: {json.dumps(answers)}
 
-                        Evaluate each answer. Be strict but fair. Assign partial marks based on the key points/steps.
-                        Format as Markdown. Use LaTeX for math. Start with an estimated Total Score, then detailed feedback for each question.
+                        Evaluate each answer. Be strict but fair.
+                        Format as Markdown. Start with an estimated Total Score, then detailed feedback.
                         """
                         with st.spinner("AyA is grading your paper..."):
                             try:
                                 res = openai_client.chat.completions.create(
                                     model="llama-3.3-70b-versatile",
                                     messages=[{"role": "user", "content": prompt}],
-                                    temperature=0.2
+                                    temperature=0.1
                                 )
                                 st.session_state.mt_feedback = res.choices[0].message.content
                                 st.rerun()
@@ -602,6 +577,9 @@ elif st.session_state.page == "Live Class":
             else:
                 st.info("No new announcements.")
 
+# ==========================================
+# PAGE: VAULT
+# ==========================================
 elif st.session_state.page == "Vault":
     st.markdown("# 📚 The Resource Vault")
     st.write("Access proprietary notes, formula sheets, and recorded lectures 24/7.")
@@ -623,6 +601,9 @@ elif st.session_state.page == "Vault":
             st.write("📝 **Master Notes:** Zeroes of a polynomial and relationship with coefficients.")
             st.download_button("Download PDF", data="dummy data", file_name="Polynomials_Formulas.pdf", mime="application/pdf")
 
+# ==========================================
+# PAGE: PROGRESS
+# ==========================================
 elif st.session_state.page == "Progress":
     st.markdown("# 📈 Performance Analytics")
     st.write("Track your Mock Test scores and identify areas for improvement.")
@@ -650,6 +631,9 @@ elif st.session_state.page == "Progress":
             st.session_state.page = "AyA_AI"
             st.rerun()
 
+# ==========================================
+# PAGE: SERVICES
+# ==========================================
 elif st.session_state.page == "Services":
     st.markdown("# 📚 Our Services")
     st.markdown("## 🎓 Subjects We Teach")
@@ -671,6 +655,9 @@ elif st.session_state.page == "Services":
             st.markdown("### 🧬 Biology")
             st.write("Botany, Zoology & NEET Prep")
 
+# ==========================================
+# PAGE: TESTIMONIALS
+# ==========================================
 elif st.session_state.page == "Testimonials":
     st.markdown("# 💬 Student Success Stories")
     t1, t2 = st.columns(2)
@@ -707,6 +694,9 @@ elif st.session_state.page == "Testimonials":
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2: st.link_button("📱 Book Free Trial", "https://wa.me/917339315376", use_container_width=True)
 
+# ==========================================
+# PAGE: BOOTCAMP
+# ==========================================
 elif st.session_state.page == "Bootcamp":
     st.markdown("# 🐍 Python for Data Science & AI")
     boot1, boot2 = st.columns([1, 1.5])
@@ -740,6 +730,9 @@ elif st.session_state.page == "Bootcamp":
         st.write("")
         st.link_button("📱 Enroll Now", "https://wa.me/917339315376", use_container_width=True)
 
+# ==========================================
+# PAGE: CONTACT
+# ==========================================
 elif st.session_state.page == "Contact":
     st.markdown("# 📞 Get In Touch")
     c1, c2 = st.columns([1, 1])
