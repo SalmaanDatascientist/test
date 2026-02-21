@@ -118,15 +118,11 @@ def set_live_status(is_live, topic="", link=""):
 
 def clean_json_response(raw_text):
     """Pro-level JSON extractor and LaTeX escape-fixer."""
-    # 1. Extract JSON array block
     match = re.search(r'\[\s*\{.*?\}\s*\]', raw_text, re.DOTALL)
     if match:
         raw_json = match.group(0)
     else:
         raw_json = raw_text.replace("```json", "").replace("```", "").strip()
-        
-    # 2. Fix unescaped backslashes for LaTeX (e.g., \frac -> \\frac)
-    # This regex protects JSON structure while fixing the LLM's LaTeX syntax errors
     fixed_json = re.sub(r'(?<!\\)\\(?![nrt"\\/])', r'\\\\', raw_json)
     return fixed_json
 
@@ -284,9 +280,9 @@ elif st.session_state.page == "AyA_AI":
     Tone: Encouraging, clear, patient, and intellectually rigorous.
     
     CRITICAL LATEX INSTRUCTIONS:
-    1. You MUST format all mathematical equations, scientific variables, formulas, and numeric values using standard LaTeX.
-    2. Enclose inline math variables in a single `$` (e.g., $f = +10$ cm, $v$).
-    3. Enclose block equations in double `$$` on their own line (e.g., $$\frac{1}{f} = \frac{1}{v} - \frac{1}{u}$$).
+    1. You MUST format all mathematical equations using standard LaTeX. Use `$` for inline math and `$$` for block math.
+    2. NEVER use the `\\times` command (it breaks our formatting engine). Use `\\cdot` or `*` for multiplication.
+    3. Use double line breaks (`\n\n`) to separate steps visually.
     
     Structure: 🧠 CONCEPT -> 🌍 CONTEXT -> ✍️ SOLUTION -> ✅ ANSWER."""
 
@@ -330,55 +326,62 @@ elif st.session_state.page == "AyA_AI":
 # ==========================================
 elif st.session_state.page == "Mock_Test":
     st.markdown("## 📝 Pro-Level AI Mock Test Engine")
-    st.caption("Strict syllabus adherence. Mathematical verification protocols enabled.")
+    st.caption("Strict syllabus adherence. Native JSON mode and Chain-of-Thought math verification enabled.")
     
     def get_questions_json(board, cls, sub, chap, num, diff, q_type):
-        prompt = f"""
-        Act as the Chief Examiner for the {board} Board in India.
-        Create a test for Class {cls} {sub}, chapter: '{chap}'. Difficulty: {diff}. Count: {num} {q_type}.
-
-        CRITICAL INSTRUCTIONS TO PREVENT CRASHES AND ERRORS:
-        1. JSON ONLY: Output ONLY a valid JSON array. No markdown blocks.
-        2. MATH ACCURACY (WORK BACKWARDS): You are strictly ordered to pick a clean, integer answer FIRST. Then, construct the question variables (like u and f) around that answer so the math is flawless. Strictly obey standard sign conventions.
-        3. LaTeX: Use LaTeX for math. Use `$` for inline math and `$$` for block math. 
+        prompt = f"Act as the Chief Examiner for the {board} Board in India.\n"
+        prompt += f"Create a test for Class {cls} {sub}, chapter: '{chap}'. Difficulty: {diff}. Count: {num} {q_type}.\n\n"
+        
+        prompt += """CRITICAL INSTRUCTIONS TO PREVENT CRASHES AND ERRORS:
+        1. JSON ONLY: Output a valid JSON object containing a "questions" array.
+        2. NO \\times COMMAND: NEVER use `\\times` for multiplication. It crashes the renderer. Use `\\cdot` or `*`.
+        3. DOUBLE ESCAPE LATEX: You MUST double-escape all LaTeX commands (e.g., write `\\\\frac` instead of `\\frac`). 
+        4. MATH ACCURACY: You MUST calculate the exact mathematical answer in the "draft_calculation" field FIRST. The `correct_answer` MUST EXACTLY MATCH one of the strings in the `options` array.
         """
         
         if q_type in ["MCQ", "Numerical"]:
             prompt += """
-        FORMAT EXACTLY LIKE THIS:
-        [
-          {
-            "id": 1,
-            "question": "Question text. Use LaTeX $f = +10$ cm.",
-            "options": ["Option A", "Option B", "Option C", "Option D"],
-            "correct_answer": "Exact string match to ONE option",
-            "explanation": "Show calculation step-by-step using double $$ for formulas. Use \\n\\n for line breaks."
-          }
-        ]
+        JSON FORMAT EXACTLY LIKE THIS:
+        {
+          "questions": [
+            {
+              "id": 1,
+              "draft_calculation": "1/v - 1/u = 1/f => 1/v = 1/20 + 1/(-40) => 1/v = 1/40 => v = +40 cm.",
+              "question": "A convex lens has a focal length of $f = +20$ cm. If an object is placed at $u = -40$ cm, what is the image distance $v$?",
+              "options": ["+20 cm", "+40 cm", "-40 cm", "-80 cm"],
+              "correct_answer": "+40 cm",
+              "explanation": "Given: $f = +20$ cm, $u = -40$ cm.\\n\\nUsing the lens formula:\\n$$\\\\frac{1}{v} - \\\\frac{1}{u} = \\\\frac{1}{f}$$\\n\\n$$\\\\frac{1}{v} = \\\\frac{1}{20} - \\\\frac{1}{40} = \\\\frac{1}{40}$$\\n\\n$v = +40$ cm."
+            }
+          ]
+        }
         """
         else:
             prompt += """
-        FORMAT EXACTLY LIKE THIS:
-        [
-          {
-            "id": 1,
-            "question": "Clear descriptive question",
-            "marks": 5,
-            "key_points": ["Point 1", "Point 2"],
-            "explanation": "A complete textbook answer."
-          }
-        ]
+        JSON FORMAT EXACTLY LIKE THIS:
+        {
+          "questions": [
+            {
+              "id": 1,
+              "question": "Clear descriptive question",
+              "marks": 5,
+              "key_points": ["Point 1", "Point 2"],
+              "explanation": "A complete textbook answer."
+            }
+          ]
+        }
         """
         try:
             res = openai_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1
+                temperature=0.1,
+                max_tokens=4000,
+                response_format={"type": "json_object"} 
             )
-            clean_output = clean_json_response(res.choices[0].message.content)
-            return json.loads(clean_output)
+            data = json.loads(res.choices[0].message.content)
+            return data.get("questions", [])
         except Exception as e:
-            st.error(f"Engine parsing error. The AI generated invalid syntax. Please try again.")
+            st.error(f"API Error. Please try reducing the question count. Details: {e}")
             return None
 
     if not st.session_state.mt_questions:
@@ -396,7 +399,7 @@ elif st.session_state.page == "Mock_Test":
 
         if st.button("🚀 Generate Pro Test", type="primary"):
             if sub and chap:
-                with st.spinner("AyA is strictly verifying calculations and drafting paper..."):
+                with st.spinner("AyA is running internal math calculations and drafting paper..."):
                     st.session_state.mt_q_type = q_type
                     st.session_state.board = board
                     st.session_state.cls = cls
@@ -445,15 +448,14 @@ elif st.session_state.page == "Mock_Test":
                         for q in st.session_state.mt_questions:
                             user_ans = answers[str(q['id'])]
                             
-                            # Safely extract and format the explanation to respect LaTeX and line breaks
                             expl = q.get('explanation', '')
                             expl_formatted = str(expl).replace('\\n', '\n').replace('\n', '\n\n')
                             
                             if user_ans == q['correct_answer']:
                                 score += 1
-                                feedback += f"### ✅ Q{q['id']}: Correct!\n**AyA's Explanation:**\n{expl_formatted}\n\n---\n"
+                                feedback += f"### ✅ Q{q['id']}: Correct!\n**AyA's Explanation:**\n\n{expl_formatted}\n\n---\n"
                             else:
-                                feedback += f"### ❌ Q{q['id']}: Incorrect.\nYour Answer: *{user_ans}*\nCorrect Answer: **{q['correct_answer']}**\n\n**AyA's Explanation:**\n{expl_formatted}\n\n---\n"
+                                feedback += f"### ❌ Q{q['id']}: Incorrect.\nYour Answer: *{user_ans}*\nCorrect Answer: **{q['correct_answer']}**\n\n**AyA's Explanation:**\n\n{expl_formatted}\n\n---\n"
                         
                         st.session_state.mt_feedback = f"## Final Score: {score}/{len(st.session_state.mt_questions)}\n\n---\n" + feedback
                         st.rerun()
@@ -465,7 +467,7 @@ elif st.session_state.page == "Mock_Test":
                         Student's Answers: {json.dumps(answers)}
 
                         Evaluate each answer. Be strict but fair. Assign partial marks based on the key points/steps.
-                        Format as Markdown. Use LaTeX for math. Start with an estimated Total Score, then detailed feedback for each question explaining where they lost marks.
+                        Format as Markdown. Use LaTeX for math. Start with an estimated Total Score, then detailed feedback for each question.
                         """
                         with st.spinner("AyA is grading your paper..."):
                             try:
@@ -480,7 +482,7 @@ elif st.session_state.page == "Mock_Test":
                                 st.error("Grading Engine offline. Try again.")
 
 # ==========================================
-# CONTINUED PAGES
+# PAGE: LIVE CLASS
 # ==========================================
 elif st.session_state.page == "Live Class":
     st.markdown("# 🔴 Molecular Man Live Classroom")
@@ -599,6 +601,54 @@ elif st.session_state.page == "Live Class":
                     """, unsafe_allow_html=True)
             else:
                 st.info("No new announcements.")
+
+elif st.session_state.page == "Vault":
+    st.markdown("# 📚 The Resource Vault")
+    st.write("Access proprietary notes, formula sheets, and recorded lectures 24/7.")
+    tab1, tab2, tab3, tab4 = st.tabs(["⚡ Physics", "⚗️ Chemistry", "🧬 Biology", "📐 Mathematics"])
+    with tab1:
+        with st.expander("CBSE Class 10: Light - Reflection and Refraction"):
+            st.write("📝 **Master Notes:** Complete breakdown of spherical mirrors and lenses.")
+            st.download_button("Download PDF", data="dummy data", file_name="Reflection_Notes.pdf", mime="application/pdf")
+    with tab2:
+        with st.expander("ICSE Class 10: Chemical Bonding"):
+            st.write("📝 **Master Notes:** Electrovalent, Covalent, and Coordinate bonding simplified.")
+            st.download_button("Download PDF", data="dummy data", file_name="Chemical_Bonding.pdf", mime="application/pdf")
+    with tab3:
+        with st.expander("CBSE Class 10: Life Processes"):
+            st.write("📝 **Master Notes:** Nutrition, Respiration, Transportation, and Excretion diagrams.")
+            st.download_button("Download PDF", data="dummy data", file_name="Life_Processes.pdf", mime="application/pdf")
+    with tab4:
+        with st.expander("CBSE Class 10: Polynomials"):
+            st.write("📝 **Master Notes:** Zeroes of a polynomial and relationship with coefficients.")
+            st.download_button("Download PDF", data="dummy data", file_name="Polynomials_Formulas.pdf", mime="application/pdf")
+
+elif st.session_state.page == "Progress":
+    st.markdown("# 📈 Performance Analytics")
+    st.write("Track your Mock Test scores and identify areas for improvement.")
+    chart_data = pd.DataFrame(
+        {
+            "Physics": [65, 70, 75, 82, 85, 90],
+            "Chemistry": [80, 78, 85, 88, 92, 95],
+            "Biology": [60, 65, 70, 72, 78, 80],
+            "Mathematics": [50, 60, 65, 75, 80, 88]
+        },
+        index=["Week 1", "Week 2", "Week 3", "Week 4", "Week 5", "Week 6"]
+    )
+    st.markdown("### 📊 Mock Test Score Trend (%)")
+    st.line_chart(chart_data)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 🎯 Strongest Areas")
+        st.success("1. ICSE Class 10 Chemistry: Chemical Bonding")
+        st.success("2. CBSE Class 10 Physics: Electricity")
+    with col2:
+        st.markdown("### 🚧 Focus Areas (AyA's Advice)")
+        st.warning("1. CBSE Class 10 Biology: Life Processes")
+        st.warning("2. CBSE Class 10 Mathematics: Polynomials")
+        if st.button("Ask AyA for help with Polynomials 🧠"):
+            st.session_state.page = "AyA_AI"
+            st.rerun()
 
 elif st.session_state.page == "Services":
     st.markdown("# 📚 Our Services")
